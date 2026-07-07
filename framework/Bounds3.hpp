@@ -17,15 +17,15 @@ class Bounds3
     {
         double minNum = std::numeric_limits<double>::lowest();
         double maxNum = std::numeric_limits<double>::max();
-        pMax = Vector3f(minNum, minNum, minNum); //ÓÒ±ß½ç
-        pMin = Vector3f(maxNum, maxNum, maxNum); //×ó±ß½ç
+        pMax = Vector3f(minNum, minNum, minNum); //å³è¾¹ç•Œ
+        pMin = Vector3f(maxNum, maxNum, maxNum); //å·¦è¾¹ç•Œ
     }
-    Bounds3(const Vector3f p) : pMin(p), pMax(p) {} //µã°üÎ§ºĞ
-    Bounds3(const Vector3f p1, const Vector3f p2) //Õı³£°üÎ§ºĞ
+    Bounds3(const Vector3f p) : pMin(p), pMax(p) {} //ç‚¹åŒ…å›´ç›’
+    Bounds3(const Vector3f p1, const Vector3f p2) //æ­£å¸¸åŒ…å›´ç›’
     {
-		//ÈÎÒâÁ½µãÇó³ö¶ÔÓ¦µÄ°üÎ§ºĞ
-        pMin = Vector3f(fmin(p1.x, p2.x), fmin(p1.y, p2.y), fmin(p1.z, p2.z)); //Á½¸öµã 6¸öÊı Ñ¡×îĞ¡Èı×é
-        pMax = Vector3f(fmax(p1.x, p2.x), fmax(p1.y, p2.y), fmax(p1.z, p2.z)); //Á½¸öµã 6¸öÊı Ñ¡×î´óÈı×é
+		//ä»»æ„ä¸¤ç‚¹æ±‚å‡ºå¯¹åº”çš„åŒ…å›´ç›’
+        pMin = Vector3f(fmin(p1.x, p2.x), fmin(p1.y, p2.y), fmin(p1.z, p2.z)); //ä¸¤ä¸ªç‚¹ 6ä¸ªæ•° é€‰æœ€å°ä¸‰ç»„
+        pMax = Vector3f(fmax(p1.x, p2.x), fmax(p1.y, p2.y), fmax(p1.z, p2.z)); //ä¸¤ä¸ªç‚¹ 6ä¸ªæ•° é€‰æœ€å¤§ä¸‰ç»„
     }
 
     Vector3f Diagonal() const { return pMax - pMin; }
@@ -90,19 +90,18 @@ class Bounds3
 };
 
 
-//ÅĞ¶ÏÓë°üÎ§ºĞÊÇ·ñÏà½»£»std::array<int, 3>& dirIsNeg²ÎÊı£º
-//dirIsNeg[0] = ray.dir.x < 0 ? 1 : 0; // x·½ÏòÊÇ·ñÎª¸º
-//dirIsNeg[1] = ray.dir.y < 0 ? 1 : 0; // y·½ÏòÊÇ·ñÎª¸º
-//dirIsNeg[2] = ray.dir.z < 0 ? 1 : 0; // z·½ÏòÊÇ·ñÎª¸º
-//Èç¹û·½ÏòÕı £¬ÔòÏÈÅöpMin£¬ÔÙÅöpMax
-//Èç¹û·½ÏòÕı £¬ÔòÏÈÅöpMin£¬ÔÙÅöpMax
+//åˆ¤æ–­ä¸åŒ…å›´ç›’æ˜¯å¦ç›¸äº¤ï¼›std::array<int, 3>& dirIsNegå‚æ•°ï¼š
+//dirIsNeg[0] = ray.dir.x < 0 ? 1 : 0; // xæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
+//dirIsNeg[1] = ray.dir.y < 0 ? 1 : 0; // yæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
+//dirIsNeg[2] = ray.dir.z < 0 ? 1 : 0; // zæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
+//å¦‚æœæ–¹å‘æ­£ ï¼Œåˆ™å…ˆç¢°pMinï¼Œå†ç¢°pMax
+//å¦‚æœæ–¹å‘æ­£ ï¼Œåˆ™å…ˆç¢°pMinï¼Œå†ç¢°pMax
 inline bool Bounds3::IntersectP(const Ray& ray, const Vector3f& invDir,
                                 const std::array<int, 3>& dirIsNeg) const
 {
     // invDir: ray direction(x,y,z), invDir=(1.0/x,1.0/y,1.0/z), use this because Multiply is faster that Division
     // dirIsNeg: ray direction(x,y,z), dirIsNeg=[int(x>0),int(y>0),int(z>0)], use this to simplify your logic
-    // TODO test if ray bound intersects
-	Vector3f tr ;//trÊÇ¹âÏßµÄ±í´ïÊ½
+	Vector3f tr ;//træ˜¯å…‰çº¿çš„è¡¨è¾¾å¼
 	double t_min_x,t_max_x;
 	double t_min_y, t_max_y;
 	double t_min_z, t_max_z;
@@ -147,8 +146,11 @@ inline bool Bounds3::IntersectP(const Ray& ray, const Vector3f& invDir,
 		tr.z = pMin.z;
 		t_max_z = (tr.z - ray.origin.z)*invDir.z;
 	}
+	//åªæœ‰å…‰çº¿è¿›å…¥äº†ä¸‰ä¸ªå¹³é¢ï¼Œæ‰ç®—è¿›å…¥åŒ…å›´ç›’
 	double t_enter = std::max(t_min_x, std::max(t_min_y, t_min_z));
-	double t_exit = std::min(t_max_x, std::min(t_max_y, t_max_z)); // min Í¬Àí
+	//åªè¦å…‰çº¿ç¦»å¼€äº†ä¸€ä¸ªå¹³é¢ï¼Œå°±ç®—ç¦»å¼€åŒ…å›´ç›’
+	double t_exit = std::min(t_max_x, std::min(t_max_y, t_max_z)); // min åŒç†
+	//å½“ä¸”ä»…å½“è¿›å…¥æ—¶é—´å°äºå‡ºå°„æ—¶é—´ï¼Œä¸”å‡ºå°„æ—¶é—´æ˜¯æœ‰æ•ˆå€¼æ‰è¿”å›ï¼Œè¿›å…¥æ—¶é—´å¯ä»¥<0æ˜¯å› ä¸ºï¼Œå…‰æºå¯ä»¥åœ¨åŒ…å›´ç›’å†…ã€‚
 	if (t_enter < t_exit && t_exit > 0)return true;
 	else return false;
 }
