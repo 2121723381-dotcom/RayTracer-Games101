@@ -162,6 +162,7 @@ default:
                                               m->specularExponent) * get_lights()[i]->intensity;
                     }
                 }
+//遵循Phong模型的最终光照计算 L= Ld + Ls
                 hitColor = lightAmt * (hitObject->evalDiffuseColor(st) * m->Kd + specularColor * m->Ks);
                 break;
             }
