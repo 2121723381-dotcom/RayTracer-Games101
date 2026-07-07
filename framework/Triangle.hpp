@@ -150,21 +150,51 @@ public:
 
     Bounds3 getBounds() { return bounding_box; }
 
-    void getSurfaceProperties(const Vector3f& P, const Vector3f& I,
-                              const uint32_t& index, const Vector2f& uv,
-                              Vector3f& N, Vector2f& st) const
-    {
-        const Vector3f& v0 = vertices[vertexIndex[index * 3]];
-        const Vector3f& v1 = vertices[vertexIndex[index * 3 + 1]];
-        const Vector3f& v2 = vertices[vertexIndex[index * 3 + 2]]; //
-        Vector3f e0 = normalize(v1 - v0);
-        Vector3f e1 = normalize(v2 - v1);
-        N = normalize(crossProduct(e0, e1));
-        const Vector2f& st0 = stCoordinates[vertexIndex[index * 3]];
-        const Vector2f& st1 = stCoordinates[vertexIndex[index * 3 + 1]];
-        const Vector2f& st2 = stCoordinates[vertexIndex[index * 3 + 2]];
-        st = st0 * (1 - uv.x - uv.y) + st1 * uv.x + st2 * uv.y;
-    }
+   /**
+ * @brief 计算光线与三角形交点处的表面属性（法向量和纹理坐标）
+ * 
+ * @param P        光线与物体的交点位置（世界坐标系）
+ * @param I        入射光线方向（世界坐标系，仅用于后续着色，本函数未直接使用）
+ * @param index    三角形索引（标识当前交点所属的第 index 个三角形）
+ * @param uv       交点在三角形内的重心坐标 (u,v)，满足 u≥0, v≥0, u+v≤1
+ * @param N        [输出] 修正后的表面法向量（世界坐标系，已归一化）
+ * @param st       [输出] 交点处的纹理坐标（归一化到 [0,1] 范围）
+ */
+void getSurfaceProperties(const Vector3f& P, const Vector3f& I,
+                          const uint32_t& index, const Vector2f& uv,
+                          Vector3f& N, Vector2f& st) const
+{
+    // ===== 步骤1：通过三角形索引获取三个顶点的世界坐标 =====
+    // vertexIndex 是全局顶点索引数组（处理OBJ等格式的顶点复用）
+    // 例如：index=5 表示第5个三角形，其顶点索引为 vertexIndex[15], vertexIndex[16], vertexIndex[17]
+    const Vector3f& v0 = vertices[vertexIndex[index * 3]];      // 三角形顶点0
+    const Vector3f& v1 = vertices[vertexIndex[index * 3 + 1]];  // 三角形顶点1
+    const Vector3f& v2 = vertices[vertexIndex[index * 3 + 2]];  // 三角形顶点2
+
+    // ===== 步骤2：计算三角形的几何法向量（平面法向量） =====
+    Vector3f e0 = normalize(v1 - v0);  // 边向量0→1（归一化）
+    Vector3f e1 = normalize(v2 - v1);  // 边向量1→2（归一化）
+    // 通过叉积计算垂直于三角形的法向量（右手定则：e0 × e1）
+    N = normalize(crossProduct(e0, e1));  // 确保法向量单位长度（关键！避免光照计算错误）
+
+    // ===== 步骤3：通过重心坐标插值得到交点处的纹理坐标 =====
+    // 获取三角形三个顶点预定义的纹理坐标
+    const Vector2f& st0 = stCoordinates[vertexIndex[index * 3]];      // 顶点0的纹理坐标
+    const Vector2f& st1 = stCoordinates[vertexIndex[index * 3 + 1]];  // 顶点1的纹理坐标
+    const Vector2f& st2 = stCoordinates[vertexIndex[index * 3 + 2]];  // 顶点2的纹理坐标
+
+    // 重心坐标插值公式：st = (1-u-v)*st0 + u*st1 + v*st2
+    // uv.x = u, uv.y = v（Möller–Trumbore算法输出的标准重心坐标）
+    st = st0 * (1 - uv.x - uv.y) +  // 顶点0的权重 = 1-u-v
+         st1 * uv.x +               // 顶点1的权重 = u
+         st2 * uv.y;                // 顶点2的权重 = v
+
+    // ===== 注意事项 =====
+    // 1. 此处计算的是几何法向量（flat shading），所有交点使用同一法向量
+    //    （若需平滑法向量 smooth shading，应使用顶点法向量插值，而非叉积计算）
+    // 2. stCoordinates 存储的是模型UV展开后的2D坐标，与几何位置无关
+    // 3. 重心坐标插值保证了纹理在三角形内线性过渡（透视校正需在光栅化阶段处理）
+}
 
     Vector3f evalDiffuseColor(const Vector2f& st) const
     {
