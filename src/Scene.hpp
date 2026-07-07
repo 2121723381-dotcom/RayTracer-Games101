@@ -51,52 +51,40 @@ public:
         return I - 2 * dotProduct(I, N) * N;
     }
 
-
-
-// Compute refraction direction using Snell's law
-//
-// We need to handle with care the two possible situations:
-//
-//    - When the ray is inside the object
-//
-//    - When the ray is outside.
-//
-// If the ray is outside, you need to make cosi positive cosi = -N.I
-//
-// If the ray is inside, you need to invert the refractive indices and negate the normal N
-    Vector3f refract(const Vector3f &I, const Vector3f &N, const float &ior) const
+Vector3f refract(const Vector3f &I, const Vector3f &N, const float &ior) const
     {
+//构造公式1-eta_ratio * eta_ratio*(1.0f - cos_theta * cos_theta)的cosθi，且避免浮点误差，clamp函数确保cos值落到-1到1;
         float cosi = clamp(-1, 1, dotProduct(I, N));
-        float etai = 1, etat = ior;
+//etai是空气折射率，etat是介质折射率
+        float etai = 1, etat = ior; 
         Vector3f n = N;
+//折射有光线从外射向内，内射向外两种情况；
+//当cos<0，光线由外射向内，由于物理公式cosi要正数，应该取cosi的相反数；
+//当cos>0，光线由内射向外，斯涅尔定律要求法线与入射光在同一个介质上，即翻转法线，并交换空气-介质折射率
         if (cosi < 0) { cosi = -cosi; } else { std::swap(etai, etat); n= -N; }
         float eta = etai / etat;
+//当判别式k<0,发生全反射，无折射向量，返回0；
+//否则返回出射向量，利用向量的分解与合成
         float k = 1 - eta * eta * (1 - cosi * cosi);
         return k < 0 ? 0 : eta * I + (eta * cosi - sqrtf(k)) * n;
     }
 
 
-
-    // Compute Fresnel equation
-//
-// \param I is the incident view direction
-//
-// \param N is the normal at the intersection point
-//
-// \param ior is the material refractive index
-//
-// \param[out] kr is the amount of light reflected
     void fresnel(const Vector3f &I, const Vector3f &N, const float &ior, float &kr) const
     {
         float cosi = clamp(-1, 1, dotProduct(I, N));
         float etai = 1, etat = ior;
         if (cosi > 0) {  std::swap(etai, etat); }
         // Compute sini using Snell's law
+//计算sin出射角：
+//sint = n1/n2 * sini
         float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi));
         // Total internal reflection
+//如果sint>1 则没有解，发生全反射，Kr返回1；
         if (sint >= 1) {
             kr = 1;
         }
+//根据公式构造菲涅尔系数
         else {
             float cost = sqrtf(std::max(0.f, 1 - sint * sint));
             cosi = fabsf(cosi);
