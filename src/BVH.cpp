@@ -6,16 +6,21 @@
 BVHAccel::BVHAccel(std::vector<Object*> p, int maxPrimsInNode,
                    SplitMethod splitMethod)
     : maxPrimsInNode(std::min(255, maxPrimsInNode)), splitMethod(splitMethod),
-      primitives(std::move(p))
+      primitives(std::move(p)) 
+// maxPrimsInNodeï¼šå¶å­èŠ‚ç‚¹å…è®¸çš„æœ€å¤§Objectæ•°é‡ï¼Œä¸€èˆ¬è®¾ç½®ä¸º1ï¼Œè¿™æ ·ä¸€ä¸ªå¶å­èŠ‚ç‚¹åªéœ€è¦åšä¸€æ¬¡ç‰©ä½“-å…‰çº¿æ±‚äº¤
+// splitMethodï¼šå†³å®šå¦‚ä½•å°†å¤åˆèŠ‚ç‚¹å†…åœ°çš„ç‰©ä½“åˆ’åˆ†åˆ°å·¦å³å­æ ‘ä¸­çš„æ–¹æ³•ï¼›
+// ç¨‹åºä¸€èˆ¬æšä¸¾{ Nativeï¼ˆæœ´ç´ æ³•ï¼‰ï¼ŒSAHï¼ˆè¡¨é¢é¢ç§¯å¯å‘å¼ï¼‰}
+// primitivesï¼šå‚æ•°ä¼ å…¥pæŒ‡é’ˆï¼ŒæŠŠæŒ‡å‘ä¸‰è§’å½¢çš„æŒ‡é’ˆæ•°ç»„é€šè¿‡moveå‡½æ•°ç§»åŠ¨åˆ°primitivesï¼Œä¸‰è§’å½¢ç¾¤çš„æŒ‡é’ˆäº¤ç»™BVHAccelå¯¹è±¡
 {
     time_t start, stop;
-    time(&start);
+    time(&start); // æ„å»ºå¼€å§‹å‰ï¼Œè®¡ç®—å½“å‰æ—¶é—´
+//æ²¡æœ‰ç‰©ä½“åˆ™ä¸æ„å»ºåŠ é€Ÿç»“æ„
     if (primitives.empty())
         return;
-
+//æœ‰ç‰©ä½“åˆ™æ„å»ºåŠ é€Ÿç»“æ„æ ¹èŠ‚ç‚¹
     root = recursiveBuild(primitives);
 
-    time(&stop);
+    time(&stop); // æ„å»ºå®Œæ¯•åï¼Œè®¡ç®—å½“å‰æ—¶é—´
     double diff = difftime(stop, start);
     int hrs = (int)diff / 3600;
     int mins = ((int)diff / 60) - (hrs * 60);
@@ -108,70 +113,22 @@ Intersection BVHAccel::getIntersection(BVHBuildNode* node, const Ray& ray) const
     // TODO Traverse the BVH to find intersection
 	Vector3f dir_inv = ray.direction_inv;
 	std::array<int, 3> dirIsNeg{};
-	dirIsNeg[0] = ray.direction.x < 0 ? 1 : 0; // x·½ÏòÊÇ·ñÎª¸º
-    dirIsNeg[1] = ray.direction.y < 0 ? 1 : 0; // y·½ÏòÊÇ·ñÎª¸º
-    dirIsNeg[2] = ray.direction.z < 0 ? 1 : 0; // z·½ÏòÊÇ·ñÎª¸º
+	dirIsNeg[0] = ray.direction.x < 0 ? 1 : 0; // xæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
+    dirIsNeg[1] = ray.direction.y < 0 ? 1 : 0; // yæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
+    dirIsNeg[2] = ray.direction.z < 0 ? 1 : 0; // zæ–¹å‘æ˜¯å¦ä¸ºè´Ÿ
 	Intersection inter;
 	if (!node->bounds.IntersectP(ray, dir_inv, dirIsNeg)) return inter;
-	//ÒÔÏÂÇé¿ö¶¼ÊÇÒÑ¾­´òµ½°üÎ§ºĞµÄÇé¿ö
-	//Ò¶×Ó½ÚµãÇé¿ö
+	//ä»¥ä¸‹æƒ…å†µéƒ½æ˜¯å·²ç»æ‰“åˆ°åŒ…å›´ç›’çš„æƒ…å†µ
+	//å¶å­èŠ‚ç‚¹æƒ…å†µ
 	if (node->left == nullptr && node->right == nullptr) return node->object->getIntersection(ray);
-	//¸´ºÏ½ÚµãÇé¿ö
+	//å¤åˆèŠ‚ç‚¹æƒ…å†µ
 	if (node->left != nullptr && node->right != nullptr)
 	{
-		// ÕıÈ·Ğ´·¨
+		// æ­£ç¡®å†™æ³•
 		Intersection left_hit = getIntersection(node->left, ray);
 		Intersection right_hit = getIntersection(node->right, ray);
-		// ·µ»Ø¾àÀë¸ü½üµÄ½»µã
+		// è¿”å›è·ç¦»æ›´è¿‘çš„äº¤ç‚¹
 		return left_hit.distance < right_hit.distance ? left_hit : right_hit;
 	}
 	else return inter;
 }
-
-//Intersection BVHAccel::getIntersection(BVHBuildNode* node, const Ray& ray) const
-//{
-//	// ========== 1. ×¼±¸Çó½»¸¨ÖúÊı¾İ ==========
-//	// ¹âÏß·½ÏòµÄµ¹Êı£¬ÓÃÓÚ°üÎ§ºĞÇó½»Ê±ÓÃ³Ë·¨´úÌæ³ı·¨£¬ÌáÉıËÙ¶È
-//	Vector3f dir_inv = ray.direction_inv;
-//	// ±ê¼Ç¹âÏßÃ¿¸öÖáÏòµÄ·½ÏòÕı¸º£º1=¸º·½Ïò£¬0=Õı·½Ïò
-//	// ÓÃÓÚ¿ìËÙÅĞ¶Ï°üÎ§ºĞµÄÁ½¸öÆ½ÃæÄÄ¸öÏÈ±»¹âÏß»÷ÖĞ
-//	std::array<int, 3> dirIsNeg{};
-//	dirIsNeg[0] = ray.direction.x < 0 ? 1 : 0;
-//	dirIsNeg[1] = ray.direction.y < 0 ? 1 : 0;
-//	dirIsNeg[2] = ray.direction.z < 0 ? 1 : 0;
-//
-//	// ========== 2. °üÎ§ºĞ¿ìËÙ²Ã¼ô£¨ºËĞÄ¼ÓËÙÂß¼­£©==========
-//	// ÏÈÅĞ¶Ï¹âÏßºÍµ±Ç°BVH½ÚµãµÄ°üÎ§ºĞÊÇ·ñÏà½»
-//	// Èç¹û²»Ïà½»£¬Ö±½Ó·µ»Ø¿Õ½»µã£¬Õâ¸ö½ÚµãÏÂÃæµÄËùÓĞÎïÌå¶¼²»ÓÃÔÙ¼ì²âÁË
-//	if (!node->bounds.IntersectP(ray, dir_inv, dirIsNeg))
-//	{
-//		// ·µ»ØÄ¬ÈÏ¹¹ÔìµÄ¿Õ½»µã£¨happened=false£¬distance=ÎŞÇî´ó£©
-//		return Intersection();
-//	}
-//
-//	// ========== 3. ÅĞ¶ÏÊÇ·ñÊÇÒ¶×Ó½Úµã ==========
-//	// Ò¶×Ó½Úµã£º×óÓÒº¢×Ó¶¼Îª¿Õ£¬½ÚµãÀï´æ·ÅÁËÒ»¸ö¾ßÌåµÄÎïÌå
-//	if (node->left == nullptr && node->right == nullptr)
-//	{
-//		// ¡¾¹Ø¼üĞŞ¸Ä¡¿µ÷ÓÃÎïÌå×ÔÉíµÄ¾«È·Çó½»º¯Êı
-//		// ¶àÌ¬×Ô¶¯´¦Àí£ºÇòÌå¾Í½â¶ş´Î·½³Ì£¬Íø¸ñÄ£ĞÍ¾Í×ßËüÄÚ²¿×Ô¼ºµÄBVH±éÀúÈı½ÇĞÎ
-//		// Õâ¸öº¯Êı»á·µ»ØÍêÕûµÄ½»µãĞÅÏ¢£¨×ø±ê¡¢·¨Ïß¡¢²ÄÖÊ¡¢¾àÀëµÈ£©£¬²»ĞèÒªÎÒÃÇÊÖ¶¯²¹È«
-//		return node->object->getIntersection(ray);
-//	}
-//
-//	// ========== 4. ÄÚ²¿½Úµã£ºµİ¹é±éÀú×óÓÒ×ÓÊ÷ ==========
-//	// ·Ö±ğµİ¹é¼ì²â×ó¡¢ÓÒ×Ó½Úµã£¬ÄÃµ½¸÷×ÔµÄ×î½ü½»µã½á¹û
-//	Intersection left_hit = getIntersection(node->left, ray);
-//	Intersection right_hit = getIntersection(node->right, ray);
-//
-//	// ±È½ÏÁ½¸ö½»µãµÄ¾àÀë£¬·µ»ØÀëÏà»ú¸ü½üµÄÄÇ¸ö½»µã
-//	// ¹âÏß×·×ÙÖ»ĞèÒª×î½üµÄ½»µã£¬¸üÔ¶µÄ»á±»ÕÚµ²£¬Ã»ÓĞÒâÒå
-//	if (left_hit.distance < right_hit.distance)
-//	{
-//		return left_hit;
-//	}
-//	else
-//	{
-//		return right_hit;
-//	}
-//}
