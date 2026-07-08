@@ -58,7 +58,40 @@ case REFLECTION_AND_REFRACTION: //玻璃材质：反射加折射
             }
 ```
 
-最后计算总颜色值涉及到了菲涅尔系数的计算（不同角度下，光线反射的量不同），下面给出源码
+castRay函数调用了refract(),这个函数内部分有光线从内到外，从外到内两种不同情况对应不同方法
+
+下面给出解释
+
+输入：入射方向 I，表面获取到的法线N，材质折射率ior
+
+逻辑：利用斯涅尔定律求出折射方向
+
+注意点1：构造cos(I*N)用clamp()函数确保cos值在-1到1，避免浮点数误差
+
+注意点2：物理公式cos永远为正，当入射方向与法线>90度时，cos取反
+
+注意点3：当判别式k = 1 - eta * eta * (1 - cosi * cosi)<0,则发生全反射，折射方向返回0
+```cpp
+Vector3f refract(const Vector3f &I, const Vector3f &N, const float &ior) const
+    {
+//构造公式1-eta_ratio * eta_ratio*(1.0f - cos_theta * cos_theta)的cosθi，且避免浮点误差，clamp函数确保cos值落到-1到1;
+        float cosi = clamp(-1, 1, dotProduct(I, N));
+//etai是空气折射率，etat是介质折射率
+        float etai = 1, etat = ior; 
+        Vector3f n = N;
+//折射有光线从外射向内，内射向外两种情况；
+//当cos<0，光线由外射向内，由于物理公式cosi要正数，应该取cosi的相反数；
+//当cos>0，光线由内射向外，斯涅尔定律要求法线与入射光在同一个介质上，即翻转法线，并交换空气-介质折射率
+        if (cosi < 0) { cosi = -cosi; } else { std::swap(etai, etat); n= -N; }
+        float eta = etai / etat;
+//当判别式k<0,发生全反射，无折射向量，返回0；
+//否则返回出射向量，利用向量的分解与合成
+        float k = 1 - eta * eta * (1 - cosi * cosi);
+        return k < 0 ? 0 : eta * I + (eta * cosi - sqrtf(k)) * n;
+    }
+```
+
+情况1最后计算总颜色值涉及到了菲涅尔系数的计算（不同角度下，光线反射的量不同），下面给出源码
 
 输入：入射方向，法线，物质折射率，要更改的菲涅尔系数
 
