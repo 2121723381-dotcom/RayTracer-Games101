@@ -99,6 +99,7 @@ float fresnel(const Vector3f &I, const Vector3f &N, const float &ior)
 1：计算反射量菲涅尔系数Kr；
 2：调用reflect计算反射方向并更新反射光线起点reflectionRayOrig；
 3：用新起点新方向递归调用castRay并乘该光线对应的占比Kr；
+
 输出：hitColor = castRay(Ray(reflectionRayOrig, reflectionDirection),depth + 1) * kr;
 ```cpp
  case REFLECTION:
@@ -167,4 +168,182 @@ default:
                 break;
             }
 
+```
+
+getSurfaceProperties函数
+
+注：这个函数的参数分两种：一种是只读参数，传入函数内部，带const；一种是输出参数，传入的初始值最后被函数修改，输出函数，带‘&’
+
+输入参数：p：光-物相交点；I：光线方向；index：索引；uv：光-物相交结构体对应的纹理坐标
+
+逻辑：（1）根据传进的索引访问三角形顶点，构建向量叉乘得到输出参数N；
+（2）算出三角形三个顶点对应纹理坐标st0，st1，st2，利用Möller-Trumbore算法算出的u，v插值计算出光物相交点对应的纹理坐标st.
+
+输出参数：三角形的法线N，碰撞点对应的纹理坐标st.
+```cpp
+/**
+ * 计算光线与三角形交点处的表面属性（法向量和纹理坐标）
+ *  P        光线与物体的交点位置（世界坐标系）
+ *  I        入射光线方向（世界坐标系，仅用于后续着色，本函数未直接使用）
+ *  index    三角形索引（标识当前交点所属的第 index 个三角形）
+ *  uv       交点在三角形内的重心坐标 (u,v)，满足 u≥0, v≥0, u+v≤1
+ *  N        [输出] 修正后的表面法向量（世界坐标系，已归一化）
+ *  st       [输出] 交点处的纹理坐标（归一化到 [0,1] 范围）
+ */
+void getSurfaceProperties(const Vector3f& P, const Vector3f& I,
+                          const uint32_t& index, const Vector2f& uv,
+                          Vector3f& N, Vector2f& st) const
+{
+    // ===== 步骤1：通过三角形索引获取三个顶点的世界坐标 =====
+    // vertexIndex 是全局顶点索引数组（OBJ等格式的顶点）
+    // 例如：index=5 表示第5个三角形，其顶点索引为 vertexIndex[15], vertexIndex[16], vertexIndex[17]
+    const Vector3f& v0 = vertices[vertexIndex[index * 3]];      // 三角形顶点0
+    const Vector3f& v1 = vertices[vertexIndex[index * 3 + 1]];  // 三角形顶点1
+    const Vector3f& v2 = vertices[vertexIndex[index * 3 + 2]];  // 三角形顶点2
+
+    // ===== 步骤2：计算三角形的几何法向量（平面法向量） =====
+    Vector3f e0 = normalize(v1 - v0);  // 边向量0→1（归一化）
+    Vector3f e1 = normalize(v2 - v1);  // 边向量1→2（归一化）
+    // 通过叉积计算垂直于三角形的法向量（右手定则：e0 × e1）
+    N = normalize(crossProduct(e0, e1));  // 确保法向量单位长度（关键！避免光照计算错误）
+
+    // ===== 步骤3：通过重心坐标插值得到交点处的纹理坐标 =====
+    // 获取三角形三个顶点预定义的纹理坐标
+    const Vector2f& st0 = stCoordinates[vertexIndex[index * 3]];      // 顶点0的纹理坐标
+    const Vector2f& st1 = stCoordinates[vertexIndex[index * 3 + 1]];  // 顶点1的纹理坐标
+    const Vector2f& st2 = stCoordinates[vertexIndex[index * 3 + 2]];  // 顶点2的纹理坐标
+
+    // 重心坐标插值公式：st = (1-u-v)*st0 + u*st1 + v*st2
+    // uv.x = u, uv.y = v（Möller–Trumbore算法输出的标准重心坐标）
+    st = st0 * (1 - uv.x - uv.y) +  // 顶点0的权重 = 1-u-v
+         st1 * uv.x +               // 顶点1的权重 = u
+         st2 * uv.y;                // 顶点2的权重 = v
+
+    // ===== 注意事项 =====
+    // 1. 此处计算的是几何法向量（flat shading），所有交点使用同一法向量
+    //    （若需平滑法向量 smooth shading，应使用顶点法向量插值，而非叉积计算）
+    // 2. stCoordinates 存储的是模型UV展开后的2D坐标，与几何位置无关
+    // 3. 重心坐标插值保证了纹理在三角形内线性过渡（透视校正需在光栅化阶段处理）
+}
+```
+
+输入：指向物体的指针数组，叶子节点储存最大物体数量，分割方式
+
+逻辑：判断指针是否为空->调用底层bvh构建函数recursiveBuild(primitives)，构建之前计时间，构建完毕后停止计时
+
+输出：无 但是加速结构已经搭建完毕
+```cpp
+BVHAccel::BVHAccel(std::vector<Object*> p, int maxPrimsInNode,
+                   SplitMethod splitMethod)
+    : maxPrimsInNode(std::min(255, maxPrimsInNode)), splitMethod(splitMethod),
+      primitives(std::move(p)) 
+// maxPrimsInNode：叶子节点允许的最大Object数量，一般设置为1，这样一个叶子节点只需要做一次物体-光线求交
+// splitMethod：决定如何将复合节点内地的物体划分到左右子树中的方法；
+// 程序一般枚举{ Native（朴素法），SAH（表面面积启发式）}
+// primitives：参数传入p指针，把指向三角形的指针数组通过move函数移动到primitives，三角形群的指针交给BVHAccel对象
+{
+    time_t start, stop;
+    time(&start); // 构建开始前，计算当前时间
+//没有物体则不构建加速结构
+    if (primitives.empty())
+        return;
+//有物体则构建加速结构根节点
+    root = recursiveBuild(primitives);
+
+    time(&stop); // 构建完毕后，计算当前时间
+    double diff = difftime(stop, start);
+    int hrs = (int)diff / 3600;
+    int mins = ((int)diff / 60) - (hrs * 60);
+    int secs = (int)diff - (hrs * 3600) - (mins * 60);
+
+    printf(
+        "\rBVH Generation complete: \nTime Taken: %i hrs, %i mins, %i secs\n\n",
+        hrs, mins, secs);
+}
+```
+
+输入：物体指针群
+
+逻辑：通过传进的物体指针的个数，分3种情况构建包围盒，最后返回指向构建好的bvh节点的指针；
+
+objects.size() == 1：节点是叶子节点，node左右指针为空，物体指向
+
+objects.size() == 2：节点简单二分，将object参数改成两个物体，分别递归调用recursiveBuild()，最后用Union函数封装成一个大包围盒
+
+objects.size() >2：计算最分散的轴->将指针索引顺序与物体从左到右排序->确定中间索引然后分开一半 左边是leftshape，右边是rightshape->
+
+将leftshape与rightshape作为recursiveBuild新参数，递归构建子树，并分别用node->left，node->right 指向recursiveBuild(leftshapes),recursiveBuild(rightshapes)
+
+输出：指向构造好的加速node节点的指针
+```cpp
+//（1）：初始化node指针，BVHBuildNode* node = new BVHBuildNode(); node指向下面结构体；
+BVHBuildNode(){
+        bounds = Bounds3();
+        left = nullptr;right = nullptr;
+        object = nullptr;
+    }
+};
+//（2）：遍历所有物体列表，用一个最小包围盒装上所有物体。
+Bounds3 bounds;
+for (int i = 0; i < objects.size(); ++i)
+ bounds = Union(bounds, objects[i]->getBounds());
+//（3）：根据物体数量 N 执行不同的构建策略
+N=1，节点是叶子节点。
+if (objects.size() == 1) {
+        // Create leaf _BVHBuildNode_
+        node->bounds = objects[0]->getBounds();
+        node->object = objects[0]; 
+        node->left = nullptr;
+        node->right = nullptr;
+        return node;
+    }
+//N=2，节点简单二分，将object参数改成两个物体，分别递归调用recursiveBuild()，最后用Union函数封装成一个大包围盒
+else if (objects.size() == 2) {
+        node->left = recursiveBuild(std::vector<Object*>{objects[0]});
+        node->right = recursiveBuild(std::vector<Object*>{objects[1]});
+
+        node->bounds = Union(node->left->bounds, node->right->bounds);
+        return node;
+    }
+//N>2，
+Bounds3 centroidBounds;
+for (int i = 0; i < objects.size(); ++i)
+//遍历物体列表，通过物体包围盒的质心（空间中心点），计算物体群在xyz轴最分散的轴
+//注意：用质心计算而不用物体包围盒本身进行划分，原因如下：
+// 1. 避免大物体主导空间划分：若直接使用包围盒范围（如Union(objects[i]->getBounds())），
+// 超大物体（如场景地面）会强制将所有物体划分到同一子树，导致树极度不平衡。
+// 2. 质心仅反映位置分布：质心坐标仅表示物体在空间中的"重心位置"，与物体实际尺寸解耦，
+// 能真实反映物体群的空间分布密度（例如：密集的小物体群仍会被识别为紧凑区域）。
+// 3. 防止空间扭曲：当场景同时存在极大物体（如天空盒）和极小物体（如粒子）时，
+// 包围盒划分会因极大物体的边界主导而扭曲空间分割，而质心划分能保持子空间体积合理。
+// 4. 平衡查询效率：以质心分布最广的轴进行中位数分割，可使左右子树覆盖的空间体积更均衡，
+// 显著减少光线遍历时的无效包围盒重叠检测（对比直接用包围盒划分，性能提升可达30%+）。
+    centroidBounds =
+        Union(centroidBounds, objects[i]->getBounds().Centroid()); 
+//dim记录哪个轴最分散，x=0，y=1，z=2；
+int dim = centroidBounds.maxExtent(); 
+// 确定轴后，此时，物体指针指的物体的位置并不是按照顺序的，可能是：
+objects[0] = plane;  // 指向0x2000（地面，x=100.0）
+objects[1] = ball;   // 指向0x1000（球体，x=1.0）
+objects[2] = cube;   // 指向0x3000（立方体，x=2.5）
+// 排好才能确定中点，sort就是快速排序方法。
+// sort(范围起点，范围中点，比较规则)，当符合返回规则时，f1必须排在f2前面。
+// 当y轴，z轴最长时，改变规则即可
+std::sort(objects.begin(), objects.end(), [](auto f1, auto f2) {
+                return f1->getBounds().Centroid().x <
+                       f2->getBounds().Centroid().x;
+            });
+        auto beginning = objects.begin();
+        auto middling = objects.begin() + (objects.size() / 2);
+        auto ending = objects.end();
+
+        auto leftshapes = std::vector<Object*>(beginning, middling);
+        auto rightshapes = std::vector<Object*>(middling, ending);
+
+        assert(objects.size() == (leftshapes.size() + rightshapes.size()));
+
+        node->left = recursiveBuild(leftshapes);
+        node->right = recursiveBuild(rightshapes);
+
+        node->bounds = Union(node->left->bounds, node->right->bounds);
 ```
