@@ -4,6 +4,15 @@
 > 本仓库基于 [GAMES101: Modern Computer Graphics](https://sites.cs.ucsb.edu/~lingqi/teaching/games101.html) 课程官方框架开发。
 > 框架代码（`framework/` 目录）为课程提供，仅作编译依赖；
 > 所有算法实现（`src/` 目录）均为本人原创。
+渲染结果：
+
+控制相机位置均为Vector3f eye_pos(-1,5,10)，缩放均为6/range，渲染斯坦福兔子(4968个三角形)
+
+无BVH加速结构的渲染图，耗时76min（4579s）<img width="2058" height="990" alt="屏幕截图 2026-07-08 004656" src="https://github.com/user-attachments/assets/92f129b8-6a0b-44cd-ba5d-63f6161b8a9b" />
+
+有BVH加速结构渲染时长，耗时17s<img width="2331" height="947" alt="屏幕截图 2026-07-06 015644" src="https://github.com/user-attachments/assets/f618e766-d57c-4988-9d5b-cae4a3e8df38" />
+
+
 ### 关键代码片段
 输入：采样光线，当前光线反射次数；
 
