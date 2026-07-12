@@ -1,5 +1,7 @@
 # RayTracer-Games101
 在渲染中光线物体求交是性能瓶颈，本项目基于games101的框架实现了SAH-BVH加速结构，PBR材质，蒙特卡洛积分计算像素颜色，渲染模型性能提升186倍。
+
+在BVH章节中 还有SAH分轴方法，谈谈我对sah的理解 传统的bvh只在数量上取平均 但是忽略了物体分布不统一给渲染器带来的额外开销，sah将物体占的空间和数量一并考虑进去 计算的是开销期望 这样对性能是有十分大的帮助的
 > **项目声明**  
 > 本仓库基于 [GAMES101: Modern Computer Graphics](https://sites.cs.ucsb.edu/~lingqi/teaching/games101.html) 课程官方框架开发。
 > 框架代码（`framework/` 目录）为课程提供，仅作编译依赖；
